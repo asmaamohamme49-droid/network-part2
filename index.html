@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Computer Networks – Part 2</title>
+<style>
+:root{
+  --bg:#f7f9fc; --card:#ffffff; --text:#132238; --muted:#5b6b82;
+  --navy:#17365d; --blue:#2f6fed; --soft:#e9f0ff; --border:#dbe5f3;
+  --good:#0f9d58; --bad:#d93025; --warn:#f4b400; --shadow:0 10px 30px rgba(23,54,93,.08);
+}
+body.dark{
+  --bg:#0f1724; --card:#162234; --text:#e8eefb; --muted:#a9b7cc;
+  --navy:#8ab4ff; --blue:#6ea8ff; --soft:#1e3355; --border:#2a3d59;
+  --good:#42d392; --bad:#ff6b6b; --warn:#ffd166; --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:Tahoma, Arial, sans-serif; background:var(--bg); color:var(--text);
+  line-height:1.75;
+}
+header{
+  position:sticky; top:0; z-index:10; background:var(--card); border-bottom:1px solid var(--border);
+  padding:12px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+}
+header h1{font-size:18px; margin:0; color:var(--navy)}
+header .actions{display:flex; gap:8px; flex-wrap:wrap}
+button{
+  font-family:inherit; cursor:pointer; border:0; border-radius:12px; padding:10px 14px;
+  background:var(--blue); color:white; font-weight:700; transition:.2s;
+}
+button:hover{filter:brightness(.95); transform:translateY(-1px)}
+button.secondary{background:var(--soft); color:var(--navy); border:1px solid var(--border)}
+button.ghost{background:transparent; color:var(--text); border:1px solid var(--border)}
+button.good{background:var(--good)}
+button.bad{background:var(--bad)}
+button.warn{background:var(--warn); color:#1b1b1b}
+button:disabled{opacity:.55; cursor:not-allowed; transform:none}
+main{max-width:1100px; margin:auto; padding:22px 16px 60px}
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:20px; padding:20px;
+  box-shadow:var(--shadow); margin-bottom:18px;
+}
+.grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px}
+.part-card h3{margin:0 0 6px; color:var(--navy)}
+.badge{display:inline-block; padding:4px 10px; border-radius:999px; background:var(--soft); color:var(--navy); font-size:12px; font-weight:700}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.progress{height:10px; background:var(--soft); border-radius:999px; overflow:hidden; margin:8px 0}
+.progress > div{height:100%; background:linear-gradient(90deg,var(--blue),#7aa7ff); width:0}
+.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.space{justify-content:space-between}
+.en{direction:ltr; text-align:left; font-family:Arial, sans-serif}
+.lesson-box{border:1px solid var(--border); border-radius:16px; padding:16px; margin:12px 0; background:var(--soft)}
+.lesson-box h4{margin:0 0 8px; color:var(--navy)}
+.tag{display:inline-block; padding:3px 9px; border-radius:999px; background:var(--soft); color:var(--navy); font-size:12px; margin:2px}
+.tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px}
+.tabs button{padding:9px 12px}
+.flashcard{min-height:260px; display:flex; flex-direction:column; justify-content:center}
+.flashcard .q{font-size:20px; font-weight:800; color:var(--navy); margin-bottom:12px}
+.option{
+  display:block; width:100%; text-align:right; margin:8px 0; padding:12px 14px; border-radius:12px;
+  border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer;
+}
+.option.selected{border-color:var(--blue); background:var(--soft)}
+.option.correct{border-color:var(--good); background:rgba(15,157,88,.12)}
+.option.wrong{border-color:var(--bad); background:rgba(217,48,37,.12)}
+.list-item{padding:10px 12px; border:1px solid var(--border); border-radius:12px; margin:8px 0; background:var(--card)}
+.check{display:flex; gap:8px; align-items:flex-start}
+input[type=checkbox]{width:18px; height:18px; margin-top:5px}
+.score{font-size:34px; font-weight:900; color:var(--navy)}
+hr{border:0; border-top:1px solid var(--border); margin:16px 0}
+@media(max-width:600px){
+  header{flex-direction:column; align-items:flex-start}
+  main{padding:14px 10px 50px}
+  .card{padding:15px; border-radius:16px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Computer Networks – Part 2</h1>
+  <div class="actions">
+    <button class="ghost" onclick="goHome()">🏠 الرئيسية</button>
+    <button class="ghost" onclick="resetProgress()">🔄 إعادة تعيين</button>
+    <button class="ghost" onclick="toggleTheme()" id="themeBtn">🌙 Dark</button>
+  </div>
+</header>
+<main id="app"></main>
+
+<script>
+/* ================= Progress ================= */
+const STORE_KEY = "cn_ch1_progress_v2";
+let progress = {};
+try { progress = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch(e){ progress = {}; }
+progress.lessons = progress.lessons || {};
+progress.cards = progress.cards || {};
+progress.exams = progress.exams || {};
+progress.important = progress.important || {};
+progress.wrong = progress.wrong || [];
+progress.last = progress.last || null;
+
+function saveProgress(){ try { localStorage.setItem(STORE_KEY, JSON.stringify(progress)); } catch(e){} }
+function resetProgress(){
+  if(!confirm("هل تريد مسح كل التقدم والبدء من جديد؟")) return;
+  localStorage.removeItem(STORE_KEY);
+  progress = { lessons:{}, cards:{}, exams:{}, important:{}, wrong:[], last:null };
+  saveProgress();
+  goHome();
+}
+function shuffle(arr){
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function makeOptions(correct, pool, n=3){
+  const opts = [correct];
+  const uniq = [...new Set(pool.filter(x => x !== correct))];
+  const sh = shuffle(uniq);
+  for(let i=0; i<sh.length && opts.length < n+1; i++) opts.push(sh[i]);
+  return shuffle(opts);
+}
+
+/* ================= Content ================= */
+const parts = [
+  {
+    id:"part1",
+    title:"Part 1",
+    desc:"OSI Model vs TCP/IP Model, TCP/IP suite, IPv4 addressing, and IP address classes.",
+    lessons:[
+      {
+        title:"OSI Model vs TCP/IP Model",
+        en:"The OSI model has 7 layers: Physical, Data Link, Network, Transport, Session, Presentation, and Application. The TCP/IP model has 4 layers: Network Access, Internet, Transport, and Application. The OSI model is a reference model, while TCP/IP is the practical protocol suite used on the Internet.",
+        ar:"نموذج OSI يتكون من 7 طبقات: الفيزيائية، ربط البيانات، الشبكة، النقل، الجلسة، التقديم، والتطبيق. نموذج TCP/IP يتكون من 4 طبقات: الوصول للشبكة، الإنترنت، النقل، والتطبيق. OSI نموذج مرجعي، بينما TCP/IP هو مجموعة البروتوكولات العملية المستخدمة على الإنترنت.",
+        explain:"ببساطة: OSI بيقسّم الشغل النظري لسبع طبقات عشان نفهم الشبكة، لكن TCP/IP هو اللي شغال فعليًا على الإنترنت وبيكون أربع طبقات. كل طبقة بتقدم خدمة للطبقة اللي فوقها.",
+        terms:[{en:"OSI",ar:"نموذج مرجعي لسبع طبقات"},{en:"TCP/IP",ar:"حزمة بروتوكولات الإنترنت"},{en:"Layer",ar:"طبقة وظيفية"}],
+        importance:"ضروري للامتحان: تعرف ترتيب الطبقات، ووظيفة كل طبقة، ومقارنة OSI بـ TCP/IP.",
+        example:"HTTP في طبقة Application، TCP في Transport، IP في Internet، Ethernet في Network Access.",
+        difference:"OSI = 7 طبقات ونظري. TCP/IP = 4 طبقات وعملي.",
+        diagram:"الرسم يوضح أن طبقات OSI السبع تقابل طبقات TCP/IP الأربع: Application + Presentation + Session تقابل Application، Transport تقابل Transport، Network تقابل Internet، Data Link + Physical تقابل Network Access.",
+        exam:"احفظ أسماء الطبقات بالترتيب، ووظيفة كل طبقة، ومقابلة OSI مع TCP/IP."
+      },
+      {
+        title:"TCP/IP Protocol Stack",
+        en:"TCP/IP stands for Transmission Control Protocol / Internet Protocol. It is a set of rules that allows computers and devices to communicate over a network. TCP breaks data into packets and ensures reliable delivery. IP handles addressing and routing so packets reach the correct destination.",
+        ar:"TCP/IP اختصار Transmission Control Protocol / Internet Protocol. هي مجموعة قواعد تسمح للأجهزة بالتواصل عبر الشبكة. TCP يقسم البيانات إلى حزم ويضمن التوصيل الموثوق. IP يتعامل مع العنونة والتوجيه حتى تصل الحزم للوجهة الصحيحة.",
+        explain:"TCP مسؤول إن البيانات توصل كاملة وبالترتيب، وIP مسؤول عن عنوان الجهاز والطريق اللي البيانات تمشي فيه. مع بعض يكونوا أساس الإنترنت.",
+        terms:[{en:"TCP",ar:"بروتوكول التحكم في الإرسال"},{en:"IP",ar:"بروتوكول الإنترنت"},{en:"Packet",ar:"حزمة بيانات"}],
+        importance:"سؤال متكرر: ما الفرق بين TCP وIP؟ وما وظيفة كل واحد؟",
+        example:"عند فتح موقع، HTTP يطلب الصفحة، TCP يقسمها لحزم، IP يوجه الحزم للخادم.",
+        difference:"TCP = موثوقية وترتيب. IP = عنونة وتوجيه.",
+        diagram:"الرسم يوضح Protocol Stack: Application = HTTP، Transport = TCP، Internet = IP، Network Access = Ethernet.",
+        exam:"اعرف معنى TCP/IP، ووظيفة TCP، ووظيفة IP، وأمثلة بروتوكولات كل طبقة."
+      },
+      {
+        title:"IPv4 Addressing Basics",
+        en:"An IPv4 address is a unique 32-bit numerical label assigned to every device connected to a network. It is written in dotted decimal as four octets separated by dots. Each octet is 8 bits, and its maximum decimal value is 255. The address is divided into a network portion and a host portion.",
+        ar:"عنوان IPv4 هو عنوان رقمي فريد بطول 32 بت يتم تعيينه لكل جهاز متصل بالشبكة. يُكتب بصيغة dotted decimal كأربعة octets مفصولة بنقاط. كل octet يساوي 8 بتات وأقصى قيمة عشرية له 255. العنوان ينقسم إلى جزء شبكة وجزء مضيف.",
+        explain:"عنوان IP زي رقم البيت: جزء بيدل على الشبكة وجزء بيدل على الجهاز نفسه. بنكتبه أربع أرقام كل رقم من 0 لـ255.",
+        terms:[{en:"IPv4",ar:"الإصدار الرابع من بروتوكول الإنترنت"},{en:"Octet",ar:"مجموعة 8 بتات"},{en:"Dotted Decimal",ar:"التدوين العشري المنقط"}],
+        importance:"أساس كل حسابات الشبكات: لازم تعرف تحول بين binary وdecimal وتفهم network/host.",
+        example:"172.16.122.204: كل جزء octet. 172 و16 و122 و204.",
+        difference:"Network portion يحدد الشبكة، Host portion يحدد الجهاز.",
+        diagram:"الرسم يوضح 32 بت مقسمة إلى 4 octets، وكل octet له 8 بتات، وأقصى قيمة 255.",
+        exam:"احفظ: IPv4 = 32 bit = 4 octets، كل octet = 8 bits، أقصى قيمة = 255."
+      },
+      {
+        title:"IP Address Classes",
+        en:"IPv4 addresses are categorized into classes based on the first octet. Class A range is 1–126 and uses the first octet for the network. Class B range is 128–191 and uses the first two octets for the network. Class C range is 192–223 and uses the first three octets for the network. Class D range is 224–239 and is used for multicast.",
+        ar:"تُصنف عناوين IPv4 إلى فئات بناءً على أول octet. Class A من 1 إلى 126 ويستخدم أول octet للشبكة. Class B من 128 إلى 191 ويستخدم أول octetين للشبكة. Class C من 192 إلى 223 ويستخدم أول ثلاثة octets للشبكة. Class D من 224 إلى 239 ويستخدم للمتعدد (multicast).",
+        explain:"الفئة بتتحدد من أول رقم في العنوان. A للشبكات الكبيرة، B للمتوسطة، C للصغيرة، D للـ multicast.",
+        terms:[{en:"Class A",ar:"فئة أ"},{en:"Class B",ar:"فئة ب"},{en:"Class C",ar:"فئة ج"},{en:"Multicast",ar:"إرسال متعدد"}],
+        importance:"الامتحان غالبًا يسأل: ما نطاق كل Class؟ وما أول octet؟",
+        example:"10.1.1.1 = Class A. 172.16.2.2 = Class B. 192.168.1.10 = Class C.",
+        difference:"A: 1–126، B: 128–191، C: 192–223، D: 224–239.",
+        diagram:"الرسم يوضح أول بتات في كل Class: Class A يبدأ بـ0، Class B يبدأ بـ10، Class C يبدأ بـ110، Class D يبدأ بـ1110.",
+        exam:"احفظ نطاقات الفئات ومتى نستخدم Class D."
+      }
+    ],
+    facts:[
+      {topic:"OSI Model",en:"The OSI model has seven layers: Physical, Data Link, Network, Transport, Session, Presentation, and Application.",ar:"نموذج OSI يتكون من سبع طبقات: الفيزيائية، ربط البيانات، الشبكة، النقل، الجلسة، التقديم، والتطبيق.",diff:"Easy"},
+      {topic:"TCP/IP Model",en:"The TCP/IP model has four layers: Network Access, Internet, Transport, and Application.",ar:"نموذج TCP/IP يتكون من أربع طبقات: الوصول للشبكة، الإنترنت، النقل، والتطبيق.",diff:"Easy"},
+      {topic:"TCP/IP Suite",en:"TCP/IP is a set of protocols that allows devices to communicate over networks and is the foundation of the Internet.",ar:"TCP/IP هي مجموعة بروتوكولات تسمح للأجهزة بالتواصل عبر الشبكات وهي أساس الإنترنت.",diff:"Easy"},
+      {topic:"TCP",en:"TCP breaks data into packets and ensures reliable delivery.",ar:"TCP يقسم البيانات إلى حزم ويضمن التوصيل الموثوق.",diff:"Easy"},
+      {topic:"IP",en:"IP handles logical addressing and routing so packets reach the correct destination.",ar:"IP يتعامل مع العنونة المنطقية والتوجيه حتى تصل الحزم للوجهة الصحيحة.",diff:"Easy"},
+      {topic:"IPv4 Address",en:"An IPv4 address is a unique 32-bit numerical label assigned to a device on a network.",ar:"عنوان IPv4 هو عنوان رقمي فريد بطول 32 بت يتم تعيينه لجهاز على الشبكة.",diff:"Easy"},
+      {topic:"Dotted Decimal",en:"IPv4 is written in dotted decimal notation as four octets separated by dots.",ar:"يُكتب IPv4 بالتدوين العشري المنقط كأربعة octets مفصولة بنقاط.",diff:"Easy"},
+      {topic:"Octet",en:"Each IPv4 octet is 8 bits, and its maximum decimal value is 255.",ar:"كل octet في IPv4 يساوي 8 بتات وأقصى قيمة عشرية له 255.",diff:"Easy"},
+      {topic:"Network and Host Portions",en:"An IPv4 address is divided into a network portion and a host portion.",ar:"ينقسم عنوان IPv4 إلى جزء شبكة وجزء مضيف.",diff:"Medium"},
+      {topic:"ICANN",en:"ICANN coordinates IP address allocation, domain names, and other Internet information.",ar:"ICANN تنسق تخصيص عناوين IP وأسماء النطاقات ومعلومات الإنترنت الأخرى.",diff:"Medium"},
+      {topic:"IANA",en:"IANA oversees IP address allocation, domain name management, and protocol identifiers for ICANN.",ar:"IANA تشرف على تخصيص عناوين IP وإدارة أسماء النطاقات ومعرفات البروتوكولات لصالح ICANN.",diff:"Medium"},
+      {topic:"Class A",en:"Class A addresses range from 1 to 126 and use the first octet for the network.",ar:"عناوين Class A من 1 إلى 126 وتستخدم أول octet للشبكة.",diff:"Easy"},
+      {topic:"Class B",en:"Class B addresses range from 128 to 191 and use the first two octets for the network.",ar:"عناوين Class B من 128 إلى 191 وتستخدم أول octetين للشبكة.",diff:"Easy"},
+      {topic:"Class C",en:"Class C addresses range from 192 to 223 and use the first three octets for the network.",ar:"عناوين Class C من 192 إلى 223 وتستخدم أول ثلاثة octets للشبكة.",diff:"Easy"},
+      {topic:"Class D",en:"Class D addresses range from 224 to 239 and are used for multicast.",ar:"عناوين Class D من 224 إلى 239 وتستخدم للإرسال المتعدد multicast.",diff:"Medium"},
+      {topic:"First Octet Rule",en:"IP address classes are identified by the value of the first octet.",ar:"تُحدد فئات عناوين IP من خلال قيمة أول octet.",diff:"Easy"},
+      {topic:"Routing Table",en:"A routing table lists networks and the interfaces used to reach them.",ar:"جدول التوجيه يسرد الشبكات والواجهات المستخدمة للوصول إليها.",diff:"Medium"},
+      {topic:"Default Gateway",en:"The default gateway is the router interface that a host uses to reach other networks.",ar:"البوابة الافتراضية هي واجهة الراوتر التي يستخدمها الجهاز للوصول إلى شبكات أخرى.",diff:"Medium"},
+      {topic:"IPv6",en:"IPv6 is a newer version of IP addressing shown alongside IPv4 in the TCP/IP stack.",ar:"IPv6 هو إصدار أحدث من عنونة IP ويظهر بجانب IPv4 في حزمة TCP/IP.",diff:"Easy"},
+      {topic:"Protocol Stack Example",en:"In the TCP/IP stack, HTTP is Application, TCP is Transport, IP is Internet, and Ethernet is Network Access.",ar:"في حزمة TCP/IP، HTTP طبقة تطبيق، TCP طبقة نقل، IP طبقة إنترنت، وEthernet طبقة وصول للشبكة.",diff:"Medium"}
+    ]
+  },
+  {
+    id:"part2",
+    title:"Part 2",
+    desc:"Subnetting, subnet masks, CIDR, subnet calculations, examples, and VLSM exercises.",
+    lessons:[
+      {
+        title:"Subnetting Concepts and Need",
+        en:"Subnetting is the process of dividing a large IP network into smaller logical networks called subnets. It improves performance, security, and manageability. Without subnetting, all departments share one network, broadcast traffic floods the entire network, and IP addresses may be wasted.",
+        ar:"التقسيم الفرعي Subnetting هو تقسيم شبكة IP كبيرة إلى شبكات منطقية أصغر تسمى subnets. يحسن الأداء والأمان وسهولة الإدارة. بدون subnetting، كل الأقسام تشترك في شبكة واحدة، وحركة البث تغمر الشبكة، وقد تُهدر عناوين IP.",
+        explain:"بدل ما كل الشركة تكون شبكة واحدة كبيرة، بنقسمها شبكات صغيرة. كل قسم له subnet، فالبث ميطلعش لكل الشبكة، والأمان يتحسن، والعناوين تستخدم بكفاءة.",
+        terms:[{en:"Subnetting",ar:"تقسيم الشبكة"},{en:"Broadcast",ar:"بث"},{en:"Subnet",ar:"شبكة فرعية"}],
+        importance:"أساس أسئلة الحساب: لازم تفهم ليه بنقسم الشبكة وإزاي بنختار عدد البتات.",
+        example:"شركة عندها 192.168.1.0/24 وثلاثة أقسام: IT، Sales، HR. نقسمها لثلاث subnets.",
+        difference:"بدون subnetting: شبكة واحدة وبث لكل الأجهزة. مع subnetting: عزل وتقسيم وأداء أفضل.",
+        diagram:"الرسم يوضح شبكة كبيرة تنقسم لعدة subnets لكل قسم، وحركة البث تظل داخل كل subnet.",
+        exam:"احفظ تعريف subnetting وفوائده والفرق بين وجوده وعدمه."
+      },
+      {
+        title:"Subnet Masks, CIDR, and Addresses",
+        en:"A subnet mask determines how many bits of the IP address are used for the network portion and how many are used for the host portion. CIDR notation is shown as /n. Decimal notation is shown as four octets such as 255.255.255.0. The network address is the first address, the broadcast address is the last address, and usable hosts are between them.",
+        ar:"قناع الشبكة الفرعية Subnet Mask يحدد عدد بتات عنوان IP المستخدمة لجزء الشبكة وعدد البتات لجزء المضيف. تدوين CIDR يظهر كـ /n. التدوين العشري يظهر كأربعة octets مثل 255.255.255.0. عنوان الشبكة هو أول عنوان، وعنوان البث هو آخر عنوان، والعناوين القابلة للاستخدام بينهما.",
+        explain:"الـ mask بيقول لنا فين جزء الشبكة وفين جزء الجهاز. /24 معناها أول 24 بت للشبكة. أول عنوان في السبنت اسمه network، وآخر عنوان broadcast، والباقي للأجهزة.",
+        terms:[{en:"Subnet Mask",ar:"قناع الشبكة الفرعية"},{en:"CIDR",ar:"تدوين طول البادئة"},{en:"Network Address",ar:"عنوان الشبكة"},{en:"Broadcast Address",ar:"عنوان البث"}],
+        importance:"أي سؤال subnetting بيبدأ من الـ mask وتحديد network وbroadcast وusable range.",
+        example:"192.168.1.0/24: network = .0، broadcast = .255، usable = .1 to .254.",
+        difference:"Network address لا يُعطى لجهاز، وBroadcast لا يُعطى لجهاز، usable hosts هي الباقي.",
+        diagram:"الرسم يوضح أن أول عنوان في السبنت هو network، وآخر عنوان هو broadcast، وما بينهما usable hosts.",
+        exam:"اعرف تحدد network وbroadcast وusable range من عنوان وماسك."
+      },
+      {
+        title:"Calculating Subnets – /24 into 4 Subnets",
+        en:"To create 4 subnets from a /24 network, borrow 2 bits because 2^2 = 4. The new mask becomes /26 or 255.255.255.192. The subnet increment is 64. Each /26 subnet has 64 addresses and 62 usable hosts.",
+        ar:"لإنشاء 4 شبكات فرعية من شبكة /24، نستعير بتين لأن 2^2 = 4. يصبح القناع الجديد /26 أو 255.255.255.192. مقدار الزيادة بين الشبكات 64. كل subnet /26 يحتوي على 64 عنوانًا و62 عنوانًا قابلًا للاستخدام.",
+        explain:"عشان نعمل 4 سبنتات محتاجين 2 بت من جزء الجهاز. القناع يبقى /26. كل سبنت حجمه 64 عنوان، أول واحد network وآخر واحد broadcast، فيتبقى 62 جهاز.",
+        terms:[{en:"Borrow Bits",ar:"استعارة بتات"},{en:"Subnet Increment",ar:"مقدار الزيادة بين الشبكات"},{en:"Usable Hosts",ar:"المضيفون القابلون للاستخدام"}],
+        importance:"هذا المثال هو أكثر مثال متكرر في الامتحان: تقسيم /24 إلى 4 شبكات.",
+        example:"192.168.1.0/26، 192.168.1.64/26، 192.168.1.128/26، 192.168.1.192/26.",
+        difference:"/24 = 256 عنوان. /26 = 64 عنوان لكل subnet. 4 × 64 = 256.",
+        diagram:"الرسم يوضح أربع subnets متتالية بزيادة 64 في آخر octet.",
+        exam:"احفظ: 4 subnets → borrow 2 bits → /26 → increment 64 → 62 usable hosts."
+      },
+      {
+        title:"/29 Example and VLSM",
+        en:"For 20 subnets, borrow 5 bits because 2^4 = 16 is not enough and 2^5 = 32 is enough. The new mask is /29 or 255.255.255.248. Each /29 subnet has 8 addresses and 6 usable hosts. VLSM allows different subnet masks for different departments according to the number of required hosts, starting with the largest requirement.",
+        ar:"لإنشاء 20 شبكة فرعية، نستعير 5 بتات لأن 2^4 = 16 غير كافية و2^5 = 32 كافية. القناع الجديد /29 أو 255.255.255.248. كل subnet /29 يحتوي على 8 عناوين و6 مضيفين قابلين للاستخدام. VLSM يسمح باستخدام أقنعة مختلفة لأقسام مختلفة حسب عدد الأجهزة المطلوب، ويبدأ بالأكبر.",
+        explain:"لو محتاج 20 سبنت، 4 بت يعملوا 16 بس مش كفاية، فبناخد 5 بت ويعملوا 32. كل سبنت /29 فيه 8 عناوين، يعني 6 أجهزة. في VLSM بنوزع العناوين حسب الحاجة، الأكبر الأول.",
+        terms:[{en:"VLSM",ar:"قناع شبكة فرعية متغير الطول"},{en:"/29",ar:"قناع 255.255.255.248"},{en:"Block Size",ar:"حجم الكتلة"}],
+        importance:"VLSM بيظهر في تمارين التصميم: توزيع عناوين بكفاءة بدون هدر.",
+        example:"قسم يحتاج 60 جهاز → /26. قسم يحتاج 28 → /27. قسم يحتاج 12 → /28. WAN يحتاج 2 → /30.",
+        difference:"Subnetting العادي غالبًا نفس القناع لكل الشبكات، VLSM يستخدم أقنعة مختلفة حسب الحاجة.",
+        diagram:"الرسم يوضح شبكة 192.168.1.0/24 وتقسيمها إلى subnets بأحجام مختلفة حسب عدد الأجهزة.",
+        exam:"احفظ: 20 subnets → 5 bits → /29 → 8 addresses → 6 usable. وترتيب VLSM من الأكبر للأصغر."
+      }
+    ],
+    facts:[
+      {topic:"Subnetting",en:"Subnetting divides a large IP network into smaller logical networks called subnets.",ar:"التقسيم الفرعي يقسم شبكة IP كبيرة إلى شبكات منطقية أصغر تسمى subnets.",diff:"Easy"},
+      {topic:"Need for Subnetting",en:"Subnetting improves performance, security, and IP address usage.",ar:"التقسيم الفرعي يحسن الأداء والأمان واستخدام عناوين IP.",diff:"Easy"},
+      {topic:"Subnet Mask",en:"A subnet mask determines how many bits are used for the network and host portions.",ar:"قناع الشبكة الفرعية يحدد عدد البتات المستخدمة لجزء الشبكة وجزء المضيف.",diff:"Easy"},
+      {topic:"CIDR Notation",en:"CIDR notation shows the network prefix length as /n.",ar:"تدوين CIDR يوضح طول بادئة الشبكة بالشكل /n.",diff:"Easy"},
+      {topic:"Network Address",en:"The network address is the first address in a subnet.",ar:"عنوان الشبكة هو أول عنوان في الشبكة الفرعية.",diff:"Easy"},
+      {topic:"Broadcast Address",en:"The broadcast address is the last address in a subnet.",ar:"عنوان البث هو آخر عنوان في الشبكة الفرعية.",diff:"Easy"},
+      {topic:"Usable Host Range",en:"Usable host addresses are the addresses between the network and broadcast addresses.",ar:"عناوين المضيفين القابلة للاستخدام هي العناوين بين عنوان الشبكة وعنوان البث.",diff:"Easy"},
+      {topic:"Borrowing Bits",en:"To create subnets, bits are borrowed from the host portion.",ar:"لإنشاء شبكات فرعية، تُستعار بتات من جزء المضيف.",diff:"Medium"},
+      {topic:"Subnet Formula",en:"The number of subnets is 2^n, where n is the number of borrowed bits.",ar:"عدد الشبكات الفرعية يساوي 2^n حيث n عدد البتات المستعارة.",diff:"Medium"},
+      {topic:"/24 into /26",en:"Creating 4 subnets from /24 requires borrowing 2 bits and gives /26.",ar:"إنشاء 4 شبكات فرعية من /24 يتطلب استعارة بتين ويعطي /26.",diff:"Medium"},
+      {topic:"Subnet Increment",en:"The subnet increment is the value of the last borrowed bit position.",ar:"مقدار الزيادة بين الشبكات هو قيمة آخر بت مستعار.",diff:"Medium"},
+      {topic:"/26 Capacity",en:"Each /26 subnet has 64 addresses and 62 usable hosts.",ar:"كل شبكة /26 تحتوي على 64 عنوانًا و62 مضيفًا قابلًا للاستخدام.",diff:"Medium"},
+      {topic:"/29 Mask",en:"The /29 subnet mask is 255.255.255.248.",ar:"قناع الشبكة الفرعية /29 هو 255.255.255.248.",diff:"Medium"},
+      {topic:"20 Subnets Example",en:"To create 20 subnets, borrow 5 bits because 2^5 = 32.",ar:"لإنشاء 20 شبكة فرعية، نستعير 5 بتات لأن 2^5 = 32.",diff:"Hard"},
+      {topic:"/29 Capacity",en:"Each /29 subnet has 8 addresses and 6 usable hosts.",ar:"كل شبكة /29 تحتوي على 8 عناوين و6 مضيفين قابلين للاستخدام.",diff:"Medium"},
+      {topic:"VLSM",en:"VLSM allows different subnet masks for different network requirements.",ar:"VLSM يسمح باستخدام أقنعة شبكة فرعية مختلفة لاحتياجات شبكة مختلفة.",diff:"Medium"},
+      {topic:"VLSM Order",en:"In VLSM, allocate the largest host requirement first.",ar:"في VLSM، نخصص أكبر احتياج للمضيفين أولًا.",diff:"Medium"},
+      {topic:"Subnet Address Calculation",en:"The subnet address is found by comparing the host address with the subnet mask.",ar:"يتم إيجاد عنوان الشبكة الفرعية بمقارنة عنوان المضيف مع قناع الشبكة الفرعية.",diff:"Hard"},
+      {topic:"Block Size",en:"The block size is the number of addresses in each subnet.",ar:"حجم الكتلة هو عدد العناوين في كل شبكة فرعية.",diff:"Medium"},
+      {topic:"Efficient IP Usage",en:"Subnetting and VLSM reduce wasted IP addresses.",ar:"التقسيم الفرعي وVLSM يقللان هدر عناوين IP.",diff:"Easy"}
+    ]
+  },
+  {
+    id:"part3",
+    title:"Part 3",
+    desc:"Layer 2 switching, MAC address table, loops, STP, Cisco IOS basics, device configuration, and VLANs.",
+    lessons:[
+      {
+        title:"Layer 2 Switching and MAC Address Table",
+        en:"Switching transfers data within a network using switches at the Data Link Layer. A switch forwards frames based on MAC addresses. It learns source MAC addresses and stores them in the MAC address table. Unknown unicast frames are flooded out all ports except the incoming port. When the destination is known, the frame is forwarded only to the correct port.",
+        ar:"التبديل Switching ينقل البيانات داخل الشبكة باستخدام السويتشات في طبقة ربط البيانات. السويتش يمرر الإطارات بناءً على عناوين MAC. يتعلم عنوان MAC المصدر ويخزنه في جدول عناوين MAC. الإطارات unicast غير المعروفة يتم غمرها لكل المنافذ ما عدا منفذ الدخول. عندما تكون الوجهة معروفة، يُمرر الإطار فقط للمنفذ الصحيح.",
+        explain:"السويتش ذكي: يتعلم عنوان الجهاز المرسل ويحفظه مع المنفذ. لو الوجهة مش معروفة، يبعت لكل المنافذ. لو معروفة، يبعت للمنفذ الصح بس.",
+        terms:[{en:"Switch",ar:"مبدل"},{en:"MAC Address Table",ar:"جدول عناوين MAC"},{en:"Flooding",ar:"غمر الإطارات"}],
+        importance:"أساس الشبكات المحلية: إزاي السويتش يتعلم ويعمل forwarding.",
+        example:"Station A يبعت لـ C لأول مرة → السويتش يتعلم A على E0 ويعمل flood. بعد كده لو A يبعت لـ C تاني، يبعت على E2 فقط.",
+        difference:"Hub يبعت لكل المنافذ دائمًا. Switch يتعلم ويبعت للمنفذ المطلوب.",
+        diagram:"الرسم يوضح MAC Address Table فارغ ثم يتعلم E0: MAC A، ثم E3: MAC D.",
+        exam:"احفظ خطوات learning, flooding, forwarding، والفرق بين known وunknown unicast."
+      },
+      {
+        title:"Loop Avoidance and STP",
+        en:"Redundant links in Layer 2 can create switching loops. Because Layer 2 frames have no TTL, frames can circulate endlessly. This causes broadcast storms, MAC address table instability, and duplicate frame delivery. Spanning Tree Protocol (STP), IEEE 802.1D, prevents loops by electing a root bridge and placing redundant ports in blocking state. Switches exchange BPDUs to elect the root bridge and determine best paths.",
+        ar:"الروابط الاحتياطية في الطبقة الثانية قد تسبب حلقات switching. لأن إطارات Layer 2 ليس بها TTL، يمكن أن تدور بلا نهاية. هذا يسبب عواصف بث، وعدم استقرار جدول MAC، وتكرار تسليم الإطارات. بروتوكول Spanning Tree Protocol (STP) حسب IEEE 802.1D يمنع الحلقات باختيار Root Bridge ووضع المنافذ الزائدة في حالة Blocking. تتبادل السويتشات BPDUs لاختيار Root Bridge وتحديد أفضل المسارات.",
+        explain:"لو عندنا أكثر من طريق بين السويتشات، ممكن يحصل loop. STP بيقفل الطريق الزيادة منطقيًا ويخليها احتياطي. لو الرابط الأساسي وقع، يشغل الاحتياطي.",
+        terms:[{en:"STP",ar:"بروتوكول الشجرة الممتدة"},{en:"BPDU",ar:"وحدة بيانات بروتوكول الجسر"},{en:"Root Bridge",ar:"الجسر الجذري"},{en:"Blocking",ar:"حالة الحجب"}],
+        importance:"موضوع مهم جدًا: مشاكل الـ loop وحلول STP ومصطلحاته.",
+        example:"Switch B وSwitch C متصلين ببعض وكلاهما متصل بـRoot. STP يحجب منفذ C المتصل بـB لمنع الحلقة.",
+        difference:"Root Port = أفضل طريق للـRoot. Designated Port = منفذ forwarding على السيجمنت. Blocked Port = لا يمرر الإطارات.",
+        diagram:"الرسم يوضح SW1 هو Root بفضل أقل Bridge ID، وSW2 وSW3 non-root، ويتم حجب رابط بين SW2 وSW3.",
+        exam:"احفظ مشاكل الـ loop الثلاثة، ومصطلحات STP، واختيار Root Bridge."
+      },
+      {
+        title:"Cisco IOS Access and Command Modes",
+        en:"Cisco IOS access methods include Console, SSH, and Telnet. Console is a physical management port used for initial configuration. SSH is a secure remote CLI connection and is recommended. Telnet is insecure and sends data in plaintext. The main command modes are User EXEC mode, Privileged EXEC mode, Global Configuration mode, Line Configuration mode, and Interface Configuration mode.",
+        ar:"طرق الوصول إلى Cisco IOS تشمل Console وSSH وTelnet. Console منفذ إدارة فيزيائي يستخدم للإعداد الأولي. SSH اتصال CLI آمن عن بعد وهو الموصى به. Telnet غير آمن ويرسل البيانات كنص واضح. أوضاع الأوامر الأساسية هي User EXEC وPrivileged EXEC وGlobal Configuration وLine Configuration وInterface Configuration.",
+        explain:"للوصول للراوتر أو السويتش: Console في البداية، وبعدين SSH للتحكم الآمن. Telnet قديم وغير آمن. كل وضع في IOS له أوامر وصلاحيات مختلفة.",
+        terms:[{en:"Console",ar:"منفذ إدارة فيزيائي"},{en:"SSH",ar:"قشرة آمنة"},{en:"Telnet",ar:"اتصال نصي غير آمن"},{en:"User EXEC",ar:"وضع تنفيذ المستخدم"}],
+        importance:"أسئلة عملية على الأوامر والـ prompts: > و # و (config)#.",
+        example:"Switch> enable ← يدخل Privileged EXEC. Switch# configure terminal ← يدخل Global Config.",
+        difference:"User EXEC: أوامر مراقبة محدودة. Privileged EXEC: كل الأوامر. Global Config: تعديل الإعدادات.",
+        diagram:"الرسم يوضح تسلسل الأوضاع: Switch> ثم Switch# ثم Switch(config)# ثم Switch(config-line)# وSwitch(config-if)#.",
+        exam:"احفظ الوصول الآمن SSH، وأن Telnet غير آمن، ومعنى كل prompt."
+      },
+      {
+        title:"Basic Configuration, SVI, and VLANs",
+        en:"Basic device configuration includes hostname, passwords, password encryption, banner, and saving configurations. The running-config is in RAM and is volatile. The startup-config is in NVRAM and is saved. Use copy running-config startup-config to save. An SVI is configured with interface vlan 1, ip address, and no shutdown. A VLAN is a logical broadcast domain that improves segmentation, flexibility, and security.",
+        ar:"الإعداد الأساسي للجهاز يشمل hostname وكلمات المرور وتشفير كلمات المرور وbanner وحفظ الإعدادات. running-config في RAM وغير دائم. startup-config في NVRAM ويتم حفظه. استخدم copy running-config startup-config للحفظ. يتم إعداد SVI باستخدام interface vlan 1 وip address وno shutdown. VLAN هو نطاق بث منطقي يحسن التقسيم والمرونة والأمان.",
+        explain:"أول حاجة تسمي الجهاز، وتحط باسوردات، وتشفرها، وتحفظ. SVI هو عنوان إدارة السويتش. VLAN يقسم الشبكة منطقيًا بدل ما تكون كل الأجهزة في نفس البث.",
+        terms:[{en:"running-config",ar:"الإعداد الحالي"},{en:"startup-config",ar:"إعداد بدء التشغيل"},{en:"SVI",ar:"واجهة VLAN الافتراضية"},{en:"VLAN",ar:"شبكة محلية افتراضية"}],
+        importance:"أسئلة أوامر Cisco وحفظ الإعدادات وVLAN من أهم أسئلة الجزء العملي.",
+        example:"Switch(config)# interface vlan 1 → ip address 192.168.1.20 255.255.255.0 → no shutdown.",
+        difference:"VLAN يقسم broadcast domain. SVI يعطي السويتش عنوان IP للإدارة.",
+        diagram:"الرسم يوضح VLANs متعددة: Sales وHR وENG على نفس السويتشات لكن كل VLAN نطاق بث منفصل.",
+        exam:"احفظ أوامر hostname, enable secret, service password-encryption, banner motd, copy run start, interface vlan 1."
+      }
+    ],
+    facts:[
+      {topic:"Layer 2 Switching",en:"Switching forwards frames at the Data Link Layer using MAC addresses.",ar:"التبديل يمرر الإطارات في طبقة ربط البيانات باستخدام عناوين MAC.",diff:"Easy"},
+      {topic:"Switch Function",en:"A switch connects devices and forwards data only to the intended port when the destination MAC is known.",ar:"السويتش يربط الأجهزة ويمرر البيانات فقط للمنفذ المقصود عندما يكون عنوان MAC للوجهة معروفًا.",diff:"Easy"},
+      {topic:"MAC Address Table",en:"The MAC address table maps MAC addresses to switch ports.",ar:"جدول عناوين MAC يربط عناوين MAC بمنافذ السويتش.",diff:"Easy"},
+      {topic:"Learning Source MAC",en:"A switch learns source MAC addresses and stores them in its MAC address table.",ar:"السويتش يتعلم عناوين MAC المصدر ويخزنها في جدول عناوين MAC.",diff:"Easy"},
+      {topic:"Flooding Unknown Unicast",en:"Unknown unicast frames are flooded out all ports except the incoming port.",ar:"إطارات unicast غير المعروفة يتم غمرها لكل المنافذ ما عدا منفذ الدخول.",diff:"Medium"},
+      {topic:"Switching Loop",en:"A Layer 2 loop causes frames to circulate endlessly because frames have no TTL.",ar:"حلقة الطبقة الثانية تجعل الإطارات تدور بلا نهاية لأن الإطارات ليس بها TTL.",diff:"Medium"},
+      {topic:"Broadcast Storm",en:"A broadcast storm occurs when broadcast frames are flooded endlessly and consume bandwidth.",ar:"عاصفة البث تحدث عندما يتم غمر إطارات البث بلا نهاية وتستهلك النطاق الترددي.",diff:"Medium"},
+      {topic:"MAC Table Instability",en:"A loop causes the MAC address table to continuously update with incorrect port mappings.",ar:"الحلقة تجعل جدول عناوين MAC يتحدث باستمرار بتعيينات منافذ غير صحيحة.",diff:"Medium"},
+      {topic:"Duplicate Frame Delivery",en:"A loop may deliver the same frame to a destination multiple times.",ar:"قد تسلم الحلقة نفس الإطار إلى الوجهة أكثر من مرة.",diff:"Medium"},
+      {topic:"STP",en:"Spanning Tree Protocol prevents Layer 2 loops by blocking redundant paths.",ar:"بروتوكول الشجرة الممتدة يمنع حلقات الطبقة الثانية بحجب المسارات الزائدة.",diff:"Easy"},
+      {topic:"BPDU",en:"Switches exchange Bridge Protocol Data Units to elect the root bridge and determine paths.",ar:"تتبادل السويتشات وحدات بيانات بروتوكول الجسر لاختيار الجسر الجذري وتحديد المسارات.",diff:"Medium"},
+      {topic:"Bridge ID",en:"The Bridge ID is a combination of bridge priority and base MAC address.",ar:"معرف الجسر هو مزيج من أولوية الجسر وعنوان MAC الأساسي.",diff:"Medium"},
+      {topic:"Root Bridge",en:"The switch with the lowest Bridge ID becomes the root bridge.",ar:"السويتش صاحب أقل Bridge ID يصبح الجسر الجذري.",diff:"Easy"},
+      {topic:"Root Port",en:"The root port is the port with the lowest cost path to the root bridge.",ar:"المنفذ الجذري هو المنفذ صاحب أقل تكلفة مسار إلى الجسر الجذري.",diff:"Medium"},
+      {topic:"Designated Port",en:"A designated port is the forwarding port with the best cost on a network segment.",ar:"المنفذ المعين هو منفذ التمرير صاحب أفضل تكلفة على مقطع الشبكة.",diff:"Medium"},
+      {topic:"Blocked Port",en:"A blocked port does not forward frames in order to prevent loops.",ar:"المنفذ المحجوب لا يمرر الإطارات من أجل منع الحلقات.",diff:"Easy"},
+      {topic:"STP Enhancements",en:"RSTP, MSTP, and PVST+ are enhanced versions of Spanning Tree Protocol.",ar:"RSTP وMSTP وPVST+ هي إصدارات محسنة من بروتوكول الشجرة الممتدة.",diff:"Medium"},
+      {topic:"Cisco IOS Access Methods",en:"Console, SSH, and Telnet are methods used to access Cisco IOS.",ar:"Console وSSH وTelnet هي طرق تستخدم للوصول إلى Cisco IOS.",diff:"Easy"},
+      {topic:"User EXEC vs Privileged EXEC",en:"User EXEC mode uses the > prompt, while Privileged EXEC mode uses the # prompt.",ar:"وضع User EXEC يستخدم المؤشر > بينما وضع Privileged EXEC يستخدم المؤشر #.",diff:"Easy"},
+      {topic:"VLAN",en:"A VLAN is a logical broadcast domain that improves segmentation, flexibility, and security.",ar:"VLAN هو نطاق بث منطقي يحسن التقسيم والمرونة والأمان.",diff:"Easy"}
+    ]
+  }
+];
+
+const allFacts = parts.flatMap(p => p.facts.map(f => ({...f, partId:p.id, partTitle:p.title})));
+const partById = id => parts.find(p => p.id === id);
+const factsFor = id => id === "final" ? allFacts : (partById(id) ? partById(id).facts : []);
+const titleFor = id => {
+  if(id === "final") return "Final Chapter Revision";
+  const p = partById(id);
+  return p ? p.title : "";
+};
+
+/* ================= Progress helpers ================= */
+function lessonKey(partId, i){ return partId + ":" + i; }
+function cardKey(partId, i){ return partId + ":" + i; }
+function countLessons(part){
+  return part.lessons.filter((_, i) => progress.lessons[lessonKey(part.id, i)]).length;
+}
+function countCards(part){
+  return part.facts.filter((_, i) => progress.cards[cardKey(part.id, i)]).length;
+}
+function partPercent(part){
+  if(!part) return 0;
+  const l = part.lessons.length ? (countLessons(part) / part.lessons.length) * 30 : 0;
+  const c = part.facts.length ? (countCards(part) / part.facts.length) * 20 : 0;
+  const e = progress.exams[part.id] ? progress.exams[part.id].percent * 0.5 : 0;
+  return Math.min(100, Math.round(l + c + e));
+}
+function statusOf(part){
+  const p = partPercent(part);
+  if(p >= 100) return "Completed";
+  if(p > 0) return "In Progress";
+  return "Not Started";
+}
+function overallPercent(){
+  if(!parts.length) return 0;
+  return Math.round(parts.reduce((s, p) => s + partPercent(p), 0) / parts.length);
+}
+
+/* ================= UI state ================= */
+const app = document.getElementById("app");
+let currentPartId = null;
+let currentStage = "study";
+let currentLessonIndex = 0;
+let flashState = { partId:null, index:0, show:false };
+let examState = null;
+
+function goHome(){
+  currentPartId = null;
+  currentStage = "study";
+  examState = null;
+  renderDashboard();
+}
+
+function toggleTheme(){
+  document.body.classList.toggle("dark");
+  const isDark = document.body.classList.contains("dark");
+  document.getElementById("themeBtn").textContent = isDark ? "☀️ Light" : "🌙 Dark";
+  localStorage.setItem("cn_theme", isDark ? "dark" : "light");
+}
+
+/* ================= Dashboard ================= */
+function renderDashboard(){
+  const lastValid = progress.last && (progress.last.part === "final" || partById(progress.last.part));
+  const cont = lastValid
+    ? `استمر من ${titleFor(progress.last.part)}`
+    : "ابدأ من Part 1";
+
+  app.innerHTML = `
+    <section class="card">
+      <div class="row space">
+        <div>
+          <h2 style="margin:0;color:var(--navy)">Dashboard</h2>
+          <p class="muted" style="margin:6px 0 0">Part 2 – Computer Networks</p>
+        </div>
+        <div style="min-width:220px">
+          <div class="small row space"><span>التقدم الكلي</span><b>${overallPercent()}%</b></div>
+          <div class="progress"><div style="width:${overallPercent()}%"></div></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button onclick="continueLearning()">Continue Learning</button>
+        <button class="secondary" onclick="showFinal()">Final Chapter Revision</button>
+      </div>
+      <p class="small muted">${cont}</p>
+    </section>
+    <div class="grid">
+      ${parts.map(p => {
+        const exam = progress.exams[p.id];
+        return `
+        <div class="card part-card">
+          <h3>${p.title}</h3>
+          <p class="small muted">${p.desc}</p>
+          <div class="small row space"><span>الإنجاز</span><b>${partPercent(p)}%</b></div>
+          <div class="progress"><div style="width:${partPercent(p)}%"></div></div>
+          <p class="small">الدروس: ${countLessons(p)} / ${p.lessons.length} &nbsp; | &nbsp; Flashcards: ${countCards(p)} / ${p.facts.length}</p>
+          <p class="small">الاختبار: ${exam ? exam.score + " / " + exam.total + " (" + exam.percent + "%)" : "لم يتم"}</p>
+          <p class="small">الحالة: <b>${statusOf(p)}</b></p>
+          <div class="row">
+            <button onclick="showPart('${p.id}','study')">فتح الجزء</button>
+            <button class="secondary" onclick="showPart('${p.id}','exam')">الاختبار</button>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function continueLearning(){
+  if(progress.last && progress.last.part === "final"){ showFinal(); return; }
+  if(progress.last && partById(progress.last.part)){
+    showPart(progress.last.part, progress.last.stage || "study");
+    return;
+  }
+  showPart("part1", "study");
+}
+
+/* ================= Part view ================= */
+function showPart(partId, stage){
+  if(!partById(partId)){ showPart("part1","study"); return; }
+  if(currentPartId !== partId){ currentLessonIndex = 0; }
+  currentPartId = partId;
+  currentStage = stage || "study";
+  flashState = { partId, index:0, show:false };
+  progress.last = {part:partId, stage:currentStage};
+  saveProgress();
+  renderPart();
+}
+
+function renderPart(){
+  const p = partById(currentPartId);
+  if(!p){ showPart("part1","study"); return; }
+  app.innerHTML = `
+    <section class="card">
+      <div class="row space">
+        <div>
+          <h2 style="margin:0;color:var(--navy)">${p.title}</h2>
+        </div>
+        <button class="secondary" onclick="goHome()">رجوع للرئيسية</button>
+      </div>
+      <p class="muted">${p.desc}</p>
+      <div class="progress"><div style="width:${partPercent(p)}%"></div></div>
+      <div class="tabs" style="margin-top:14px">
+        ${tabBtn("study","Study & Explanation")}
+        ${tabBtn("flash","20 Essay Flashcards")}
+        ${tabBtn("summary","20 Key Points")}
+        ${tabBtn("exam","Final Exam – 60 Questions")}
+        ${tabBtn("results","Part Results")}
+      </div>
+    </section>
+    <section id="stage"></section>
+  `;
+  renderStage();
+}
+
+function tabBtn(stage, label){
+  return `<button class="${currentStage===stage?'':'secondary'}" onclick="setStage('${stage}')">${label}</button>`;
+}
+
+function setStage(stage){
+  currentStage = stage;
+  progress.last = {part:currentPartId, stage};
+  saveProgress();
+  renderPart();
+}
+
+function renderStage(){
+  const box = document.getElementById("stage");
+  if(!box) return;
+  if(currentStage === "study") box.innerHTML = studyHTML();
+  else if(currentStage === "flash") box.innerHTML = flashHTML();
+  else if(currentStage === "summary") box.innerHTML = summaryHTML();
+  else if(currentStage === "exam") box.innerHTML = examIntroHTML();
+  else if(currentStage === "results") box.innerHTML = resultsHTML(currentPartId);
+  else box.innerHTML = studyHTML();
+}
+
+/* ================= Study ================= */
+function studyHTML(){
+  const p = partById(currentPartId);
+  if(!p) return "";
+  if(currentLessonIndex >= p.lessons.length) currentLessonIndex = 0;
+  const lesson = p.lessons[currentLessonIndex];
+  const done = !!progress.lessons[lessonKey(p.id, currentLessonIndex)];
+  return `
+  <div class="card">
+    <div class="row space">
+      <h3 style="margin:0;color:var(--navy)">${lesson.title}</h3>
+      <span class="badge">Lesson ${currentLessonIndex+1} / ${p.lessons.length}</span>
+    </div>
+    <div class="lesson-box"><h4>Original Text</h4><p class="en">${lesson.en}</p></div>
+    <div class="lesson-box"><h4>الترجمة العربية</h4><p>${lesson.ar}</p></div>
+    <div class="lesson-box"><h4>شرح مبسط بالمصري</h4><p>${lesson.explain}</p></div>
+    <div class="lesson-box"><h4>المصطلحات</h4>${lesson.terms.map(t => `<span class="tag">${t.en} = ${t.ar}</span>`).join("")}</div>
+    <div class="lesson-box"><h4>الأهمية</h4><p>${lesson.importance}</p></div>
+    <div class="lesson-box"><h4>مثال عملي</h4><p>${lesson.example}</p></div>
+    <div class="lesson-box"><h4>الفروق المهمة</h4><p>${lesson.difference}</p></div>
+    <div class="lesson-box"><h4>شرح الرسم / المخطط</h4><p>${lesson.diagram}</p></div>
+    <div class="lesson-box"><h4>مهم للامتحان</h4><p>${lesson.exam}</p></div>
+    <div class="row space" style="margin-top:16px">
+      <button class="secondary" ${currentLessonIndex===0?'disabled':''} onclick="prevLesson()">Previous Lesson</button>
+      <button class="${done?'good':'warn'}" onclick="toggleLessonDone()">${done?'Completed ✓':'Mark as Completed'}</button>
+      <button ${currentLessonIndex===p.lessons.length-1?'disabled':''} onclick="nextLesson()">Next Lesson</button>
+    </div>
+  </div>`;
+}
+function prevLesson(){ if(currentLessonIndex>0){ currentLessonIndex--; renderStage(); } }
+function nextLesson(){
+  const p = partById(currentPartId);
+  if(p && currentLessonIndex < p.lessons.length-1){ currentLessonIndex++; renderStage(); }
+}
+function toggleLessonDone(){
+  const key = lessonKey(currentPartId, currentLessonIndex);
+  progress.lessons[key] = !progress.lessons[key];
+  saveProgress(); renderStage();
+}
+
+/* ================= Flashcards ================= */
+function flashHTML(){
+  const partId = flashState.partId || currentPartId;
+  const facts = factsFor(partId);
+  if(!facts.length) return `<div class="card"><p>لا توجد بطاقات.</p></div>`;
+  if(flashState.index >= facts.length) flashState.index = 0;
+  const idx = flashState.index;
+  const f = facts[idx];
+  const reviewed = !!progress.cards[cardKey(partId, idx)];
+  return `
+  <div class="card flashcard">
+    <div class="row space">
+      <span class="badge">Card ${idx+1} / ${facts.length}</span>
+      <span class="badge">${reviewed ? "Reviewed ✓" : "Not reviewed"}</span>
+    </div>
+    <div class="q en">Explain / Define: ${f.topic}</div>
+    ${flashState.show ? `
+      <div class="lesson-box">
+        <h4>Model Answer</h4>
+        <p class="en">${f.en}</p>
+        <h4>الترجمة</h4>
+        <p>${f.ar}</p>
+      </div>
+    ` : `<p class="muted">اضغط Show Answer لإظهار الإجابة النموذجية.</p>`}
+    <div class="row space" style="margin-top:16px">
+      <button class="secondary" ${idx===0?'disabled':''} onclick="prevCard()">Previous Card</button>
+      <button onclick="toggleCardAnswer()">${flashState.show?'Hide Answer':'Show Answer'}</button>
+      <button ${idx===facts.length-1?'disabled':''} onclick="nextCard()">Next Card</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" onclick="shuffleCards()">Shuffle Cards</button>
+      <button class="${reviewed?'good':'secondary'}" onclick="toggleCardReviewed()">${reviewed?'Reviewed ✓':'Mark as Reviewed'}</button>
+    </div>
+  </div>`;
+}
+function toggleCardAnswer(){ flashState.show = !flashState.show; renderStage(); }
+function prevCard(){ if(flashState.index>0){ flashState.index--; flashState.show=false; renderStage(); } }
+function nextCard(){ const facts = factsFor(flashState.partId||currentPartId); if(flashState.index<facts.length-1){ flashState.index++; flashState.show=false; renderStage(); } }
+function shuffleCards(){ const facts = factsFor(flashState.partId||currentPartId); flashState.index = Math.floor(Math.random()*facts.length); flashState.show=false; renderStage(); }
+function toggleCardReviewed(){
+  const partId = flashState.partId || currentPartId;
+  const key = cardKey(partId, flashState.index);
+  progress.cards[key] = !progress.cards[key];
+  saveProgress(); renderStage();
+}
+
+/* ================= Summary ================= */
+function summaryHTML(){
+  const facts = factsFor(currentPartId);
+  return `
+  <div class="card">
+    <h3 style="color:var(--navy)">20 Key Points – ${titleFor(currentPartId)}</h3>
+    ${facts.map((f,i)=>`
+      <div class="list-item">
+        <div class="check">
+          <input type="checkbox" ${progress.important[cardKey(currentPartId,i)]?'checked':''} onchange="toggleImportant(${i})">
+          <div>
+            <div><b>${i+1}.</b> <span class="en">${f.en}</span></div>
+            <div class="muted small">${f.ar}</div>
+          </div>
+        </div>
+      </div>
+    `).join("")}
+  </div>`;
+}
+function toggleImportant(i){
+  const key = cardKey(currentPartId, i);
+  progress.important[key] = !progress.important[key];
+  saveProgress();
+}
+
+/* ================= Exam ================= */
+function buildPartExam(part){
+  if(!part) return [];
+  const qs = [];
+  part.facts.forEach((f, i) => {
+    const pool1 = part.facts.filter(x => x !== f).map(x => x.en);
+    const opts1 = makeOptions(f.en, pool1);
+    qs.push({
+      type:"mcq",
+      q:`Which statement is correct about ${f.topic}?`,
+      options:opts1,
+      answer:opts1.indexOf(f.en),
+      explanation:f.en,
+      arQ:`أي عبارة صحيحة عن ${f.topic}؟`,
+      arExp:f.ar,
+      topic:f.topic,
+      difficulty:f.diff
+    });
+    const other = part.facts[(i+1) % part.facts.length];
+    qs.push({
+      type:"tf",
+      q:`True or False: "${other.en}" describes ${f.topic}.`,
+      options:["True","False"],
+      answer:1,
+      explanation:`False. ${f.en}`,
+      arQ:`صح أم خطأ: "${other.ar}" تصف ${f.topic}؟`,
+      arExp:`خطأ. ${f.ar}`,
+      topic:f.topic,
+      difficulty:f.diff
+    });
+    const pool3 = part.facts.filter(x => x.topic !== f.topic).map(x => x.topic);
+    const opts3 = makeOptions(f.topic, pool3);
+    qs.push({
+      type:"mcq",
+      q:`Which term matches this description: ${f.en}`,
+      options:opts3,
+      answer:opts3.indexOf(f.topic),
+      explanation:f.en,
+      arQ:`أي مصطلح يطابق هذا الوصف: ${f.ar}`,
+      arExp:f.ar,
+      topic:f.topic,
+      difficulty:f.diff
+    });
+  });
+  return qs.slice(0,60);
+}
+
+function buildFinalExam(){
+  return allFacts.map(f => {
+    const opts = makeOptions(f.en, allFacts.filter(x => x !== f).map(x => x.en));
+    return {
+      type:"mcq",
+      q:`Which statement is correct about ${f.topic}?`,
+      options:opts,
+      answer:opts.indexOf(f.en),
+      explanation:f.en,
+      arQ:`أي عبارة صحيحة عن ${f.topic}؟`,
+      arExp:f.ar,
+      topic:f.topic,
+      difficulty:f.diff
+    };
+  }).slice(0,60);
+}
+
+function examIntroHTML(){
+  return `
+  <div class="card">
+    <h3 style="color:var(--navy)">Final Exam – ${titleFor(currentPartId)}</h3>
+    <p>الاختبار مكون من 60 سؤالًا. سؤال واحد في كل مرة. بعد اختيار الإجابة اضغط Confirm Answer.</p>
+    <button onclick="startExam('${currentPartId}')">Start Exam</button>
+  </div>`;
+}
+
+function startExam(partId){
+  let qs = [];
+  if(partId === "final") qs = buildFinalExam();
+  else qs = buildPartExam(partById(partId));
+  if(!qs.length){ alert("لا توجد أسئلة متاحة."); return; }
+  examState = { partId, questions:qs, index:0, selected:null, confirmed:false, score:0, wrong:[] };
+  renderExamQuestion();
+}
+
+function renderExamQuestion(){
+  if(!examState) { renderDashboard(); return; }
+  const q = examState.questions[examState.index];
+  const total = examState.questions.length;
+  app.innerHTML = `
+    <div class="card">
+      <div class="row space">
+        <span class="badge">Question ${examState.index+1} / ${total}</span>
+        <span class="badge">${q.difficulty||""}</span>
+      </div>
+      <h3 class="en">${q.q}</h3>
+      <p class="muted small">${q.arQ}</p>
+      <div>
+        ${q.options.map((opt,i)=>{
+          let cls = "option";
+          if(examState.selected === i && !examState.confirmed) cls += " selected";
+          if(examState.confirmed && i === q.answer) cls += " correct";
+          if(examState.confirmed && examState.selected === i && i !== q.answer) cls += " wrong";
+          return `<button class="${cls}" ${examState.confirmed?'disabled':''} onclick="selectOption(${i})">${opt}</button>`;
+        }).join("")}
+      </div>
+      ${examState.confirmed ? `
+        <div class="lesson-box">
+          <p><b>${examState.selected === q.answer ? "Correct ✓" : "Wrong ✗"}</b></p>
+          <p class="en"><b>Explanation:</b> ${q.explanation}</p>
+          <p><b>الترجمة:</b> ${q.arExp}</p>
+        </div>
+        <button onclick="nextExamQuestion()">${examState.index === total-1 ? "Show Results" : "Next Question"}</button>
+      ` : `
+        <button onclick="confirmExamAnswer()">Confirm Answer</button>
+      `}
+    </div>
+  `;
+}
+
+function selectOption(i){
+  if(!examState || examState.confirmed) return;
+  examState.selected = i;
+  renderExamQuestion();
+}
+
+function confirmExamAnswer(){
+  if(!examState || examState.selected === null || examState.confirmed) return;
+  const q = examState.questions[examState.index];
+  examState.confirmed = true;
+  if(examState.selected === q.answer) examState.score++;
+  else {
+    examState.wrong.push({
+      q:q.q, correct:q.options[q.answer], your:q.options[examState.selected],
+      explanation:q.explanation, arExp:q.arExp, topic:q.topic
+    });
+    progress.wrong.push({partId:examState.partId, ...q});
+    saveProgress();
+  }
+  renderExamQuestion();
+}
+
+function nextExamQuestion(){
+  if(!examState) return;
+  if(examState.index < examState.questions.length-1){
+    examState.index++;
+    examState.selected = null;
+    examState.confirmed = false;
+    renderExamQuestion();
+  } else finishExam();
+}
+
+function finishExam(){
+  if(!examState) return;
+  const total = examState.questions.length;
+  const percent = Math.round(examState.score / total * 100);
+  const result = { score:examState.score, total, percent, date:new Date().toISOString(), wrong:examState.wrong };
+  progress.exams[examState.partId] = result;
+  const partId = examState.partId;
+  examState = null;
+  saveProgress();
+  if(partId === "final"){ showFinalResults(); }
+  else { currentPartId = partId; currentStage = "results"; progress.last = {part:partId, stage:"results"}; saveProgress(); renderPart(); }
+}
+
+function resultsHTML(partId){
+  const r = progress.exams[partId];
+  if(!r) return `<div class="card"><h3>Part Results</h3><p>لم يتم أداء الاختبار بعد.</p></div>`;
+  const level = r.percent >= 85 ? "Excellent" : r.percent >= 70 ? "Good" : r.percent >= 50 ? "Needs Review" : "Weak";
+  return `
+  <div class="card">
+    <h3 style="color:var(--navy)">Part Results – ${titleFor(partId)}</h3>
+    <p class="score">${r.score} / ${r.total}</p>
+    <p>Percentage: <b>${r.percent}%</b></p>
+    <p>Correct: <b>${r.score}</b> &nbsp; | &nbsp; Wrong: <b>${r.wrong.length}</b></p>
+    <p>Performance Level: <b>${level}</b></p>
+    <h4>الموضوعات التي تحتاج مراجعة</h4>
+    <p>${[...new Set(r.wrong.map(w=>w.topic))].join(", ") || "لا توجد"}</p>
+    <div class="row">
+      <button class="secondary" onclick="toggleWrongReview()">Review Wrong Answers</button>
+      <button onclick="startExam('${partId}')">Retake Exam</button>
+      ${partId !== "final" ? `<button onclick="nextPart('${partId}')">Continue to Next Part</button>` : ""}
+    </div>
+    <div id="wrongReview" style="display:none;margin-top:14px">
+      ${r.wrong.map((w,i)=>`
+        <div class="list-item">
+          <b>${i+1}. ${w.q}</b>
+          <p class="small">Correct: ${w.correct}</p>
+          <p class="small">Your answer: ${w.your}</p>
+          <p class="small en">${w.explanation}</p>
+          <p class="small">${w.arExp}</p>
+        </div>
+      `).join("")}
+    </div>
+  </div>`;
+}
+
+function toggleWrongReview(){
+  const el = document.getElementById("wrongReview");
+  if(el) el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+function nextPart(partId){
+  const order = ["part1","part2","part3"];
+  const i = order.indexOf(partId);
+  if(i >= 0 && i < order.length-1) showPart(order[i+1], "study");
+  else showFinal();
+}
+
+/* ================= Final Revision ================= */
+function showFinal(){
+  currentPartId = "final";
+  currentStage = "final";
+  progress.last = {part:"final", stage:"final"};
+  saveProgress();
+  const r = progress.exams.final;
+  app.innerHTML = `
+    <section class="card">
+      <div class="row space">
+        <div>
+          <h2 style="margin:0;color:var(--navy)">Final Chapter Revision</h2>
+          <p class="muted">مراجعة شاملة للفصل بالكامل</p>
+        </div>
+        <button class="secondary" onclick="goHome()">رجوع للرئيسية</button>
+      </div>
+      <p>الاختبار النهائي: ${r ? r.score+" / "+r.total+" ("+r.percent+"%)" : "لم يتم"}</p>
+      <div class="row">
+        <button onclick="showFinalFlashcards()">Review All Flashcards</button>
+        <button class="secondary" onclick="showFinalSummary()">Chapter Summary</button>
+        <button onclick="startFinalExam()">Final Exam – 60 Questions</button>
+      </div>
+    </section>
+  `;
+}
+
+function showFinalFlashcards(){
+  flashState = {partId:"final", index:0, show:false};
+  app.innerHTML = `<div id="finalFlash"></div>`;
+  renderFinalFlashcards();
+}
+
+function renderFinalFlashcards(){
+  const container = document.getElementById("finalFlash");
+  if(!container) return;
+  const facts = allFacts;
+  if(flashState.index >= facts.length) flashState.index = 0;
+  const idx = flashState.index;
+  const f = facts[idx];
+  const reviewed = !!progress.cards[cardKey("final", idx)];
+  container.innerHTML = `
+    <div class="card flashcard">
+      <div class="row space">
+        <span class="badge">Final Flashcard ${idx+1} / ${facts.length}</span>
+        <span class="badge">${reviewed?"Reviewed ✓":"Not reviewed"}</span>
+      </div>
+      <div class="q en">Explain / Define: ${f.topic}</div>
+      ${flashState.show ? `<div class="lesson-box"><p class="en">${f.en}</p><p>${f.ar}</p></div>` : `<p class="muted">اضغط Show Answer.</p>`}
+      <div class="row space">
+        <button class="secondary" ${idx===0?'disabled':''} onclick="finalPrevCard()">Previous</button>
+        <button onclick="finalToggleAnswer()">${flashState.show?'Hide Answer':'Show Answer'}</button>
+        <button ${idx===facts.length-1?'disabled':''} onclick="finalNextCard()">Next</button>
+      </div>
+      <div class="row">
+        <button class="${reviewed?'good':'secondary'}" onclick="finalToggleReviewed()">${reviewed?'Reviewed ✓':'Mark as Reviewed'}</button>
+        <button class="ghost" onclick="showFinal()">رجوع</button>
+      </div>
+    </div>`;
+}
+function finalToggleAnswer(){ flashState.show=!flashState.show; renderFinalFlashcards(); }
+function finalPrevCard(){ if(flashState.index>0){ flashState.index--; flashState.show=false; renderFinalFlashcards(); } }
+function finalNextCard(){ if(flashState.index<allFacts.length-1){ flashState.index++; flashState.show=false; renderFinalFlashcards(); } }
+function finalToggleReviewed(){ const key=cardKey("final",flashState.index); progress.cards[key]=!progress.cards[key]; saveProgress(); renderFinalFlashcards(); }
+
+function showFinalSummary(){
+  app.innerHTML = `
+  <div class="card">
+    <div class="row space"><h3 style="color:var(--navy)">Chapter Summary – All Key Points</h3><button class="secondary" onclick="showFinal()">رجوع</button></div>
+    ${allFacts.map((f,i)=>`
+      <div class="list-item">
+        <b>${i+1}.</b> <span class="en">${f.en}</span>
+        <div class="muted small">${f.ar}</div>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function startFinalExam(){
+  const qs = buildFinalExam();
+  if(!qs.length){ alert("لا توجد أسئلة."); return; }
+  examState = { partId:"final", questions:qs, index:0, selected:null, confirmed:false, score:0, wrong:[] };
+  renderExamQuestion();
+}
+
+function showFinalResults(){
+  app.innerHTML = resultsHTML("final");
+  progress.last = {part:"final", stage:"results"};
+  saveProgress();
+}
+
+/* ================= Init ================= */
+function init(){
+  if(localStorage.getItem("cn_theme") === "dark") document.body.classList.add("dark");
+  document.getElementById("themeBtn").textContent = document.body.classList.contains("dark") ? "☀️ Light" : "🌙 Dark";
+  renderDashboard();
+}
+init();
+</script>
+</body>
+</html>
